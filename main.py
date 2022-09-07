@@ -3,6 +3,10 @@ Main file to set up the FL system and train
 Code design inspired by https://github.com/FedML-AI/FedML
 '''
 import torch
+try:
+    torch.multiprocessing.set_start_method('spawn')
+except RuntimeError:
+    pass
 import numpy as np
 import random
 import data_preprocessing.data_loader as dl
@@ -14,7 +18,8 @@ from models.resnet_stochdepth import resnet56 as resnet56_stochdepth
 from models.resnet_stochdepth import resnet18 as resnet18_stochdepth
 from models.resnet_fedalign import resnet56 as resnet56_fedalign
 from models.resnet_fedalign import resnet18 as resnet18_fedalign
-from torch.multiprocessing import set_start_method, Queue
+from torch.multiprocessing import set_start_method, Queue, get_context
+import multiprocessing
 import logging
 import os
 from collections import defaultdict
@@ -29,7 +34,6 @@ import methods.stochdepth as stochdepth
 import methods.mixup as mixup
 import methods.fedalign as fedalign
 import data_preprocessing.custom_multiprocess as cm
-
 def add_args(parser):
     # Training settings
     parser.add_argument('--method', type=str, default='fedavg', metavar='N',
@@ -140,7 +144,7 @@ def allocate_clients_to_threads(args):
 
 if __name__ == "__main__":
     try:
-     set_start_method('spawn')
+        set_start_method('spawn')
     except RuntimeError:
         pass
     set_random_seed()
@@ -218,7 +222,9 @@ if __name__ == "__main__":
         client_info.put((client_dict[i], args))
 
     # Start server and get initial outputs
-    pool = cm.MyPool(args.thread_number, init_process, (client_info, Client))
+    # pool = cm.MyPool(args.thread_number, init_process,(client_info, Client))
+    pool = cm.MyPool(processes=args.thread_number, initializer=init_process, initargs=(client_info, Client))
+    # pool = cm.MyPool(args.thread_number)
     # init server
     server_dict['save_path'] = '{}/logs/{}__{}_e{}_c{}'.format(os.getcwd(),
         time.strftime("%Y%m%d_%H%M%S"), args.method, args.epochs, args.client_number)
