@@ -1,0 +1,22 @@
+{
+    "method": "fedsvd",
+    "data_dir": "data/cifar100",
+    "partition_method": "hetero",
+    "partition_alpha": 0.1,
+    "client_number": 10,
+    "batch_size": 64,
+    "lr": 0.01,
+    "wd": 0.0001,
+    "epochs": 5,
+    "comm_round": 25,
+    "pretrained": false,
+    "mu": 0.45,
+    "width": 0.25,
+    "mult": 1.0,
+    "num_subnets": 3,
+    "save_client": false,
+    "thread_number": 10,
+    "client_sample": 1.0,
+    "stoch_depth": 0.5,
+    "gamma": 0.0
+}

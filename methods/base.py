@@ -118,14 +118,17 @@ class Base_Server():
     def log_info(self, client_info, acc):
         client_acc = sum([c['acc'] for c in client_info])/len(client_info)
         out_str = 'Test/AccTop1: {}, Client_Train/AccTop1: {}, round: {}\n'.format(acc, client_acc, self.round)
+        client_indv_acc=[c['acc'] for c in client_info]
+        client_str=f'Client acc : {client_indv_acc}\n'
         with open('{}/out.log'.format(self.save_path), 'a+') as out_file:
             out_file.write(out_str)
+            out_file.write(client_str)
 
     def operations(self, client_info):
         client_info.sort(key=lambda tup: tup['client_index'])
         client_sd = [c['weights'] for c in client_info]
+        '''clients aggregate weights'''
         cw = [c['num_samples']/sum([x['num_samples'] for x in client_info]) for c in client_info]
-
         ssd = self.model.state_dict()
         for key in ssd:
             ssd[key] = sum([sd[key]*cw[i] for i, sd in enumerate(client_sd)])

@@ -93,6 +93,7 @@ def load_data(datadir):
 
 def partition_data(datadir, partition, n_nets, alpha):
     logging.info("*********partition data***************")
+    # get labels in order along with their args.
     y_train, y_test = load_data(datadir)
     n_train = y_train.shape[0]
     n_test = y_test.shape[0]
@@ -100,8 +101,11 @@ def partition_data(datadir, partition, n_nets, alpha):
 
     if partition == "homo":
         total_num = n_train
+        # randomlize idxs
         idxs = np.random.permutation(total_num)
+        # split n_nets proportion of idxs
         batch_idxs = np.array_split(idxs, n_nets)
+        # save the indexs
         net_dataidx_map = {i: batch_idxs[i] for i in range(n_nets)}
 
     elif partition == "hetero":
@@ -115,16 +119,24 @@ def partition_data(datadir, partition, n_nets, alpha):
             idx_batch = [[] for _ in range(n_nets)]
             # for each class in the dataset
             for k in range(K):
+                # retrieve the idx with corresponding label
                 idx_k = np.where(y_train == k)[0]
+                # shuffle the idx
                 np.random.shuffle(idx_k)
+                # proportions according to dirichlet distribution. sum()==1
                 proportions = np.random.dirichlet(np.repeat(alpha, n_nets))
                 ## Balance
                 proportions = np.array([p * (len(idx_j) < N / n_nets) for p, idx_j in zip(proportions, idx_batch)])
                 proportions = proportions / proportions.sum()
+                # produce the endpoint idx for each client
                 proportions = (np.cumsum(proportions) * len(idx_k)).astype(int)[:-1]
+                # update idx_batch with the Kth class
+                # extend idx_batch by cutting the Kth class idx list by the endpoint idx
                 idx_batch = [idx_j + idx.tolist() for idx_j, idx in zip(idx_batch, np.split(idx_k, proportions))]
+                # minimum size of a single client
                 min_size = min([len(idx_j) for idx_j in idx_batch])
 
+        # shuffle the clients idx
         for j in range(n_nets):
             np.random.shuffle(idx_batch[j])
             net_dataidx_map[j] = idx_batch[j]
@@ -161,6 +173,7 @@ def load_partition_data(data_dir, partition_method, partition_alpha, client_numb
     logging.info("traindata_cls_counts = " + str(traindata_cls_counts))
     train_data_num = sum([len(net_dataidx_map[r]) for r in range(client_number)])
 
+    # get global dataset (overall)
     train_data_global, test_data_global = get_dataloader(data_dir, batch_size, batch_size)
     logging.info("train_dl_global number = " + str(len(train_data_global)))
     logging.info("test_dl_global number = " + str(len(train_data_global)))
@@ -173,10 +186,12 @@ def load_partition_data(data_dir, partition_method, partition_alpha, client_numb
 
     for client_idx in range(client_number):
         dataidxs = net_dataidx_map[client_idx]
+        # calculate statistics
         local_data_num = len(dataidxs)
         data_local_num_dict[client_idx] = local_data_num
         logging.info("client_idx = %d, local_sample_number = %d" % (client_idx, local_data_num))
 
+        # cut the sequence with the idx
         # training batch size = 64; algorithms batch size = 32
         train_data_local, test_data_local = get_dataloader(data_dir, batch_size, batch_size, dataidxs)
         logging.info("client_idx = %d, batch_num_train_local = %d, batch_num_test_local = %d" % (

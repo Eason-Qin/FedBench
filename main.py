@@ -24,9 +24,12 @@ import logging
 import os
 from collections import defaultdict
 import time
+import json
+from argparse import Namespace
 
 # methods
 import methods.fedavg as fedavg
+import methods.fedsvd as fedsvd
 import methods.gradaug as gradaug
 import methods.fedprox as fedprox
 import methods.moon as moon
@@ -48,7 +51,7 @@ def add_args(parser):
     parser.add_argument('--partition_alpha', type=float, default=0.5, metavar='PA',
                         help='alpha value for Dirichlet distribution partitioning of data(default: 0.5)')
 
-    parser.add_argument('--client_number', type=int, default=16, metavar='NN',
+    parser.add_argument('--client_number', type=int, default=5, metavar='NN',
                         help='number of clients in the FL system')
 
     parser.add_argument('--batch_size', type=int, default=64, metavar='N',
@@ -151,19 +154,27 @@ if __name__ == "__main__":
     # get arguments
     parser = argparse.ArgumentParser()
     args = add_args(parser)
+    args = vars(args)
+    # with open("./config.json", mode="w") as f:
+        # json.dump(args.__dict__, f, indent=4)
+    with open('./config.json') as f:
+        args.update(json.load(fp=f))
+    args=Namespace(**args)
  
     # get data
     train_data_num, test_data_num, train_data_global, test_data_global, data_local_num_dict, train_data_local_dict, test_data_local_dict,\
          class_num = dl.load_partition_data(args.data_dir, args.partition_method, args.partition_alpha, args.client_number, args.batch_size)
 
     mapping_dict = allocate_clients_to_threads(args)
+
+    gpus=[1,2,3]
     #init method and model type
     if args.method=='fedavg':
         Server = fedavg.Server
         Client = fedavg.Client
         Model = resnet56 if 'cifar' in args.data_dir else resnet18
         server_dict = {'train_data':train_data_global, 'test_data': test_data_global, 'model_type': Model, 'num_classes': class_num}
-        client_dict = [{'train_data':train_data_local_dict, 'test_data': test_data_local_dict, 'device': i % torch.cuda.device_count(),
+        client_dict = [{'train_data':train_data_local_dict, 'test_data': test_data_local_dict, 'device': gpus[i % len(gpus)],
                             'client_map':mapping_dict[i], 'model_type': Model, 'num_classes': class_num} for i in range(args.thread_number)]
     elif args.method=='gradaug':
         Server = gradaug.Server
@@ -182,6 +193,19 @@ if __name__ == "__main__":
         server_dict = {'train_data':train_data_global, 'test_data': test_data_global, 'model_type': Model, 'num_classes': class_num}
         client_dict = [{'train_data':train_data_local_dict, 'test_data': test_data_local_dict, 'device': i % torch.cuda.device_count(),
                             'client_map':mapping_dict[i], 'model_type': Model, 'num_classes': class_num} for i in range(args.thread_number)]
+
+    elif args.method=='fedsvd':
+        # specify client
+        Server = fedsvd.Server
+        Client = fedsvd.Client
+        Model = resnet56 if 'cifar' in args.data_dir else resnet18
+        # args needed in Clients.init()
+        server_dict = {'train_data':train_data_global, 'test_data': test_data_global, 'model_type': Model, 'num_classes': class_num}
+        client_dict = [{'train_data':train_data_local_dict, 'test_data': test_data_local_dict, 'device': gpus[i % len(gpus)],
+                            'client_map':mapping_dict[i], 'model_type': Model, 'num_classes': class_num} for i in range(args.thread_number)]
+
+    
+
     elif args.method=='moon':
         Server = moon.Server
         Client = moon.Client
@@ -216,15 +240,14 @@ if __name__ == "__main__":
     else:
         raise ValueError('Invalid --method chosen! Please choose from availible methods.')
     
-    #init nodes
+    #init nodes, put global and local args in queue
     client_info = Queue()
     for i in range(args.thread_number):
         client_info.put((client_dict[i], args))
 
     # Start server and get initial outputs
-    # pool = cm.MyPool(args.thread_number, init_process,(client_info, Client))
+    # init clients with args
     pool = cm.MyPool(processes=args.thread_number, initializer=init_process, initargs=(client_info, Client))
-    # pool = cm.MyPool(args.thread_number)
     # init server
     server_dict['save_path'] = '{}/logs/{}__{}_e{}_c{}'.format(os.getcwd(),
         time.strftime("%Y%m%d_%H%M%S"), args.method, args.epochs, args.client_number)

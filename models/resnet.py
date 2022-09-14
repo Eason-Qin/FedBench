@@ -347,3 +347,10 @@ def resnet18(class_num, pretrained=False, path=None, **kwargs):
 
         model.load_state_dict(new_state_dict)
     return model
+
+if __name__ == '__main__':
+    net = resnet56(10)
+    print(net.parameters('linear'))
+    print(net.named_parameters())
+    for name, param in net.named_parameters():
+        print(name)
