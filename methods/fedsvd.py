@@ -11,11 +11,13 @@ from torch.multiprocessing import current_process
 from numpy.linalg import svd
 import numpy as np
 import json
+import sys
 
 class Client(Base_Client):
     def __init__(self, client_dict, args):
         super().__init__(client_dict, args)
-        self.model = self.model_type(self.num_classes).to(self.device)
+        self.model = self.model_type(class_num=self.num_classes,in_channels=self.in_channels).to(self.device)
+        # print(self.in_channels)
         self.criterion = torch.nn.CrossEntropyLoss().to(self.device)
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.args.lr, momentum=0.9, weight_decay=self.args.wd, nesterov=True)
         self.U={}
@@ -80,7 +82,7 @@ class Client(Base_Client):
 class Server(Base_Server):
     def __init__(self,server_dict, args):
         super().__init__(server_dict, args)
-        self.model = self.model_type(self.num_classes)
+        self.model = self.model_type(class_num=self.num_classes,in_channels=self.in_channels)
         self.S_g={}
     
     def start(self):
@@ -106,6 +108,9 @@ class Server(Base_Server):
         out_str = 'Test/AccTop1: {}, Client_Train/AccTop1: {}, round: {}\n'.format(acc, client_acc, self.round)
         client_indv_acc=[c['acc'] for c in client_info]
         client_str=f'Client acc : {client_indv_acc}\n'
+        client_sd = [c['weights'] for c in client_info]
+        dict_size=f'Client communictaion size : {round(sys.getsizeof(client_sd[0])/ 1024, 2)} KB\n'
         with open('{}/out.log'.format(self.save_path), 'a+') as out_file:
             out_file.write(out_str)
             out_file.write(client_str)
+            out_file.write(dict_size)

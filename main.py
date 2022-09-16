@@ -18,6 +18,11 @@ from models.resnet_stochdepth import resnet56 as resnet56_stochdepth
 from models.resnet_stochdepth import resnet18 as resnet18_stochdepth
 from models.resnet_fedalign import resnet56 as resnet56_fedalign
 from models.resnet_fedalign import resnet18 as resnet18_fedalign
+from models.resnet_hhf import ResNet12 as resnet12_hhf
+from models.resnet_hhf import ResNet50 as resnet50_hhf
+from models.mobilnet_v2 import MobileNetV2
+from models.shufflenet import ShuffleNetG2
+
 from torch.multiprocessing import set_start_method, Queue, get_context
 import multiprocessing
 import logging
@@ -26,6 +31,7 @@ from collections import defaultdict
 import time
 import json
 from argparse import Namespace
+import shutil
 
 # methods
 import methods.fedavg as fedavg
@@ -36,13 +42,19 @@ import methods.moon as moon
 import methods.stochdepth as stochdepth
 import methods.mixup as mixup
 import methods.fedalign as fedalign
+import methods.HHF as HHF
+import methods.fedun as fedun
 import data_preprocessing.custom_multiprocess as cm
+from mail import send_email
 def add_args(parser):
     # Training settings
     parser.add_argument('--method', type=str, default='fedavg', metavar='N',
                         help='Options are: fedavg, fedprox, moon, mixup, stochdepth, gradaug, fedalign')
 
-    parser.add_argument('--data_dir', type=str, default='data/cifar100',
+    parser.add_argument('--data_dir', type=str, default='data/cifar10',
+                        help='data directory: data/cifar100, data/cifar10, or another dataset')
+    
+    parser.add_argument('--public_data', type=str, default='data/cifar100',
                         help='data directory: data/cifar100, data/cifar10, or another dataset')
 
     parser.add_argument('--partition_method', type=str, default='hetero', metavar='N',
@@ -97,6 +109,10 @@ def add_args(parser):
 
     parser.add_argument('--gamma', default=0.0, type=float,
                     help='hyperparameter gamma for mixup')
+
+    parser.add_argument('--gpus', default=[0], type=list,
+                    help='GPUs can be used.')
+
     args = parser.parse_args()
 
     return args
@@ -110,8 +126,8 @@ def set_random_seed(seed=1):
     torch.cuda.manual_seed_all(seed)
     ## NOTE: If you want every run to be exactly the same each time
     ##       uncomment the following lines
-    # torch.backends.cudnn.deterministic = True
-    # torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 # Helper Functions
 def init_process(q, Client):
@@ -163,19 +179,23 @@ if __name__ == "__main__":
  
     # get data
     train_data_num, test_data_num, train_data_global, test_data_global, data_local_num_dict, train_data_local_dict, test_data_local_dict,\
-         class_num = dl.load_partition_data(args.data_dir, args.partition_method, args.partition_alpha, args.client_number, args.batch_size)
-
+         class_num,y_train,y_test,net_idx_map = dl.load_partition_data(args.data_dir, args.partition_method, args.partition_alpha, args.client_number, args.batch_size,args.public_data)
+    # dl.print_partition_data("datapart.png",args.client_number,class_num,y_train,y_test,net_idx_map)
     mapping_dict = allocate_clients_to_threads(args)
-
-    gpus=[1,2,3]
+    gpus=args.gpus
+    if 'mnist' in args.data_dir:
+        in_channel=1
+    else:
+        in_channel=3
     #init method and model type
     if args.method=='fedavg':
         Server = fedavg.Server
         Client = fedavg.Client
-        Model = resnet56 if 'cifar' in args.data_dir else resnet18
-        server_dict = {'train_data':train_data_global, 'test_data': test_data_global, 'model_type': Model, 'num_classes': class_num}
+        Model = resnet56 if 'cifar'or 'mnist' in args.data_dir else resnet18
+        server_dict = {'train_data':train_data_global, 'test_data': test_data_global, 'model_type': Model, 'num_classes': class_num,'in_channels':in_channel}
         client_dict = [{'train_data':train_data_local_dict, 'test_data': test_data_local_dict, 'device': gpus[i % len(gpus)],
-                            'client_map':mapping_dict[i], 'model_type': Model, 'num_classes': class_num} for i in range(args.thread_number)]
+                            'client_map':mapping_dict[i], 'model_type': Model, 'num_classes': class_num,'in_channels':in_channel} for i in range(args.thread_number)]
+
     elif args.method=='gradaug':
         Server = gradaug.Server
         Client = gradaug.Client
@@ -198,11 +218,11 @@ if __name__ == "__main__":
         # specify client
         Server = fedsvd.Server
         Client = fedsvd.Client
-        Model = resnet56 if 'cifar' in args.data_dir else resnet18
+        Model = resnet56 if 'cifar' or 'mnist' in args.data_dir else resnet18
         # args needed in Clients.init()
-        server_dict = {'train_data':train_data_global, 'test_data': test_data_global, 'model_type': Model, 'num_classes': class_num}
+        server_dict = {'train_data':train_data_global, 'test_data': test_data_global, 'model_type': Model, 'num_classes': class_num,'in_channels':in_channel}
         client_dict = [{'train_data':train_data_local_dict, 'test_data': test_data_local_dict, 'device': gpus[i % len(gpus)],
-                            'client_map':mapping_dict[i], 'model_type': Model, 'num_classes': class_num} for i in range(args.thread_number)]
+                            'client_map':mapping_dict[i], 'model_type': Model, 'num_classes': class_num,'in_channels':in_channel} for i in range(args.thread_number)]
 
     
 
@@ -249,10 +269,11 @@ if __name__ == "__main__":
     # init clients with args
     pool = cm.MyPool(processes=args.thread_number, initializer=init_process, initargs=(client_info, Client))
     # init server
-    server_dict['save_path'] = '{}/logs/{}__{}_e{}_c{}'.format(os.getcwd(),
-        time.strftime("%Y%m%d_%H%M%S"), args.method, args.epochs, args.client_number)
+    server_dict['save_path'] = '{}/logs/{}__{}_e{}_c{}_{}'.format(os.getcwd(),
+        time.strftime("%Y%m%d_%H%M%S"), args.method, args.epochs, args.client_number,args.data_dir.split('/')[-1])
     if not os.path.exists(server_dict['save_path']):
         os.makedirs(server_dict['save_path'])
+    shutil.copy("./config.json",server_dict['save_path'])
     server = Server(server_dict, args)
     server_outputs = server.start()
     # Start Federated Training
@@ -267,3 +288,4 @@ if __name__ == "__main__":
         logging.info('Round {} Time: {}s'.format(r, round_end-round_start))
     pool.close()
     pool.join()
+    send_email("training finished.")

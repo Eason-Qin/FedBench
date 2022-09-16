@@ -2,6 +2,7 @@ import torch
 import logging
 import json
 from torch.multiprocessing import current_process
+import sys
 
 
 class Base_Client():
@@ -11,6 +12,7 @@ class Base_Client():
         self.device = 'cuda:{}'.format(client_dict['device'])
         self.model_type = client_dict['model_type']
         self.num_classes = client_dict['num_classes']
+        self.in_channels = client_dict['in_channels']
         self.args = args
         self.round = 0
         self.client_map = client_dict['client_map']
@@ -92,6 +94,7 @@ class Base_Server():
     def __init__(self,server_dict, args):
         self.train_data = server_dict['train_data']
         self.test_data = server_dict['test_data']
+        self.in_channels = server_dict['in_channels']
         self.device = 'cuda:{}'.format(torch.cuda.device_count()-1)
         self.model_type = server_dict['model_type']
         self.num_classes = server_dict['num_classes']
@@ -120,9 +123,12 @@ class Base_Server():
         out_str = 'Test/AccTop1: {}, Client_Train/AccTop1: {}, round: {}\n'.format(acc, client_acc, self.round)
         client_indv_acc=[c['acc'] for c in client_info]
         client_str=f'Client acc : {client_indv_acc}\n'
+        client_sd = [c['weights'] for c in client_info]
+        dict_size=f'Client communictaion size : {round(sys.getsizeof(client_sd[0])/ 1024, 2)} KB\n'
         with open('{}/out.log'.format(self.save_path), 'a+') as out_file:
             out_file.write(out_str)
             out_file.write(client_str)
+            out_file.write(dict_size)
 
     def operations(self, client_info):
         client_info.sort(key=lambda tup: tup['client_index'])

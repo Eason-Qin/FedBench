@@ -9,8 +9,9 @@ import numpy as np
 from numpy.core.fromnumeric import mean
 import torch.utils.data as data
 import torchvision.transforms as transforms
-
-from data_preprocessing.datasets import CIFAR_truncated, ImageFolder_custom
+import matplotlib.pyplot as plt
+import pandas as pd
+from data_preprocessing.datasets import CIFAR_truncated,MNIST_truncated, ImageFolder_custom
 
 logging.basicConfig()
 logger = logging.getLogger()
@@ -50,6 +51,30 @@ def _data_transforms_cifar(datadir):
 
     return train_transform, valid_transform
 
+def _data_transforms_mnist(datadir):
+    if "emnist" in datadir:
+        MNIST_MEAN = [0.1736]
+        MNIST_STD = [0.3248]
+    else:
+        MNIST_MEAN = [0.2860]
+        MNIST_STD = [0.3205]
+
+    train_transform = transforms.Compose([
+        transforms.ToPILImage(),
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize(MNIST_MEAN, MNIST_STD),
+    ])
+
+    valid_transform = transforms.Compose([
+        transforms.ToPILImage(),
+        transforms.ToTensor(),
+        transforms.Normalize(MNIST_MEAN, MNIST_STD),
+    ])
+
+    return train_transform, valid_transform
+
 def _data_transforms_imagenet(datadir):
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
@@ -80,6 +105,9 @@ def load_data(datadir):
     if 'cifar' in datadir:
         train_transform, test_transform = _data_transforms_cifar(datadir)
         dl_obj = CIFAR_truncated
+    elif 'mnist' in datadir:
+        train_transform, test_transform = _data_transforms_mnist(datadir)
+        dl_obj = MNIST_truncated
     else:
         train_transform, test_transform = _data_transforms_imagenet(datadir)
         dl_obj = ImageFolder_custom
@@ -143,7 +171,7 @@ def partition_data(datadir, partition, n_nets, alpha):
 
     traindata_cls_counts = record_net_data_stats(y_train, net_dataidx_map)
 
-    return class_num, net_dataidx_map, traindata_cls_counts
+    return class_num, net_dataidx_map, traindata_cls_counts,y_train,y_test
 
 
 # for centralized training
@@ -151,6 +179,11 @@ def get_dataloader(datadir, train_bs, test_bs, dataidxs=None):
     if 'cifar' in datadir:
         train_transform, test_transform = _data_transforms_cifar(datadir)
         dl_obj = CIFAR_truncated
+        workers=0
+        persist=False
+    elif 'mnist' in datadir:
+        train_transform, test_transform = _data_transforms_mnist(datadir)
+        dl_obj = MNIST_truncated
         workers=0
         persist=False
     else:
@@ -167,14 +200,14 @@ def get_dataloader(datadir, train_bs, test_bs, dataidxs=None):
 
     return train_dl, test_dl
 
-def load_partition_data(data_dir, partition_method, partition_alpha, client_number, batch_size):
-    class_num, net_dataidx_map, traindata_cls_counts = partition_data(data_dir, partition_method, client_number, partition_alpha)
+def load_partition_data(data_dir, partition_method, partition_alpha, client_number, batch_size,public_data):
+    class_num, net_dataidx_map, traindata_cls_counts,y_train,y_test = partition_data(data_dir, partition_method, client_number, partition_alpha)
 
     logging.info("traindata_cls_counts = " + str(traindata_cls_counts))
     train_data_num = sum([len(net_dataidx_map[r]) for r in range(client_number)])
 
     # get global dataset (overall)
-    train_data_global, test_data_global = get_dataloader(data_dir, batch_size, batch_size)
+    train_data_global, test_data_global = get_dataloader(public_data, batch_size, batch_size)
     logging.info("train_dl_global number = " + str(len(train_data_global)))
     logging.info("test_dl_global number = " + str(len(train_data_global)))
     test_data_num = len(test_data_global)
@@ -199,4 +232,39 @@ def load_partition_data(data_dir, partition_method, partition_alpha, client_numb
         train_data_local_dict[client_idx] = train_data_local
         test_data_local_dict[client_idx] = test_data_local
     return train_data_num, test_data_num, train_data_global, test_data_global, \
-           data_local_num_dict, train_data_local_dict, test_data_local_dict, class_num
+           data_local_num_dict, train_data_local_dict, test_data_local_dict, class_num,\
+            y_train,y_test,net_dataidx_map
+
+def print_partition_data(save_path,client_number,class_num,y_train,y_test,net_dataidx_map):
+    #设置绘图风格
+    plt.style.use('ggplot')
+    import matplotlib.colors as mcolors
+    colors=list(mcolors.CSS4_COLORS.keys())
+    print(len(colors))
+    class_count={}
+    for cnum in range(class_num):
+        tmp=[]
+        for clidx in range(client_number):
+            clientidx = net_dataidx_map[clidx]
+            count=0
+            for idx in clientidx:
+                if y_train[idx] == cnum:
+                    count+=1
+            tmp.append(count)
+        class_count[cnum]=tmp
+
+    for c in class_count:
+        print(f'class{c}:{class_count[c]}')
+
+    for cnum in range(class_num):
+        plt.bar(x = range(client_number),
+                height = class_count[cnum],
+                bottom = 0,
+                tick_label = np.arange(client_number),
+                color = mcolors.CSS4_COLORS[colors[cnum]],
+                label = f'Class {cnum}',
+                )
+
+    plt.ylabel('Class Count')
+    # plt.legend()
+    plt.savefig(save_path)

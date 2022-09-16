@@ -103,7 +103,7 @@ class Bottleneck(nn.Module):
 
 class ResNet(nn.Module):
 
-    def __init__(self, block, layers, num_classes=10, zero_init_residual=False, groups=1,
+    def __init__(self, block, layers,in_channels=3, num_classes=10, zero_init_residual=False, groups=1,
                  width_per_group=64, replace_stride_with_dilation=None, norm_layer=None, KD=False,  projection=False):
         super(ResNet, self).__init__()
         if norm_layer is None:
@@ -122,7 +122,7 @@ class ResNet(nn.Module):
 
         self.groups = groups
         self.base_width = width_per_group
-        self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=3, stride=1, padding=1,
+        self.conv1 = nn.Conv2d(in_channels, self.inplanes, kernel_size=3, stride=1, padding=1,
                                bias=False)
         self.bn1 = nn.BatchNorm2d(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
@@ -201,7 +201,7 @@ class ResNet(nn.Module):
 
 class ImageNet(nn.Module):
 
-    def __init__(self, block, layers, num_classes=1000, zero_init_residual=False, groups=1,
+    def __init__(self, block, layers,in_channels=3, num_classes=1000, zero_init_residual=False, groups=1,
                  width_per_group=64, replace_stride_with_dilation=None, norm_layer=None, KD=False,  projection=False):
         super(ImageNet, self).__init__()
         if norm_layer is None:
@@ -222,7 +222,7 @@ class ImageNet(nn.Module):
         self.base_width = width_per_group
         # self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=3, stride=1, padding=1,
         #                        bias=False)
-        self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3,
+        self.conv1 = nn.Conv2d(in_channels, self.inplanes, kernel_size=7, stride=2, padding=3,
                                bias=False)
         self.bn1 = nn.BatchNorm2d(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
@@ -304,14 +304,14 @@ class ImageNet(nn.Module):
         else:
             return x
 
-def resnet56(class_num, pretrained=False, path=None, **kwargs):
+def resnet56(class_num, pretrained=False, path=None,in_channels=3, **kwargs):
     """
     Constructs a ResNet-56 model.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained.
     """
-    model = ResNet(Bottleneck, [6, 6, 6], class_num, **kwargs)
+    model = ResNet(Bottleneck, [6, 6, 6],in_channels, class_num, **kwargs)
     if pretrained:
         checkpoint = torch.load(path)
         state_dict = checkpoint['state_dict']
@@ -326,14 +326,14 @@ def resnet56(class_num, pretrained=False, path=None, **kwargs):
         model.load_state_dict(new_state_dict)
     return model
 
-def resnet18(class_num, pretrained=False, path=None, **kwargs):
+def resnet18(class_num, pretrained=False, path=None,in_channels=3, **kwargs):
     """
     Constructs a ResNet-18 model.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained.
     """
-    model = ImageNet(BasicBlock, [2, 2, 2, 2], class_num, **kwargs)
+    model = ImageNet(BasicBlock, [2, 2, 2, 2], in_channels,class_num, **kwargs)
     if pretrained:
         checkpoint = torch.load(path)
         state_dict = checkpoint['state_dict']
