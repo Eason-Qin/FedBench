@@ -18,14 +18,18 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-def record_net_data_stats(y_train, net_dataidx_map):
+def record_net_data_stats(y_train,y_test, net_dataidx_map):
     net_cls_counts = {}
 
     for net_i, dataidx in net_dataidx_map.items():
         unq, unq_cnt = np.unique(y_train[dataidx], return_counts=True)
         tmp = {unq[i]: unq_cnt[i] for i in range(len(unq))}
         net_cls_counts[net_i] = tmp
-    logging.debug('Data statistics: %s' % str(net_cls_counts))
+    print('Data statistics: %s' % str(net_cls_counts))
+
+    unq_t,unq_t_cnt=np.unique(y_test,return_counts=True)
+    tmp = {unq_t[i]: unq_t_cnt[i] for i in range(len(unq_t))}
+    print('Test stats: %s' % str(tmp))
     return net_cls_counts
 
 def _data_transforms_cifar(datadir):
@@ -169,7 +173,7 @@ def partition_data(datadir, partition, n_nets, alpha):
             np.random.shuffle(idx_batch[j])
             net_dataidx_map[j] = idx_batch[j]
 
-    traindata_cls_counts = record_net_data_stats(y_train, net_dataidx_map)
+    traindata_cls_counts = record_net_data_stats(y_train,y_test, net_dataidx_map)
 
     return class_num, net_dataidx_map, traindata_cls_counts,y_train,y_test
 
@@ -227,6 +231,7 @@ def load_partition_data(data_dir, partition_method, partition_alpha, client_numb
         # cut the sequence with the idx
         # training batch size = 64; algorithms batch size = 32
         train_data_local, test_data_local = get_dataloader(data_dir, batch_size, batch_size, dataidxs)
+        print()
         logging.info("client_idx = %d, batch_num_train_local = %d, batch_num_test_local = %d" % (
             client_idx, len(train_data_local), len(test_data_local)))
         train_data_local_dict[client_idx] = train_data_local

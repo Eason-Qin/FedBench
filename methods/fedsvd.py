@@ -76,6 +76,7 @@ class Client(Base_Client):
             layer_weights=np.dot(np.dot(self.U[layer_name], np.diag(self.S[layer_name])),self.VT[layer_name])
             layer_weights=layer_weights.reshape(paramshape)
             statedict[layer_name]=torch.tensor(layer_weights).to(self.device)
+            
         self.model.load_state_dict(statedict)
             
 

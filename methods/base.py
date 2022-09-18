@@ -74,7 +74,7 @@ class Base_Client():
         test_loss = 0.0
         test_sample_number = 0.0
         with torch.no_grad():
-            for batch_idx, (x, target) in enumerate(self.train_dataloader):
+            for batch_idx, (x, target) in enumerate(self.test_dataloader):
                 x = x.to(self.device)
                 target = target.to(self.device)
 

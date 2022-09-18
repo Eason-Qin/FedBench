@@ -1,9 +1,10 @@
 {
     "method": "fedavg",
-    "data_dir": "data/cifar100",
+    "data_dir": "data/cifar10",
+    "public_data": "data/cifar10",
     "partition_method": "hetero",
     "partition_alpha": 0.1,
-    "client_number": 10,
+    "client_number": 5,
     "batch_size": 64,
     "lr": 0.01,
     "wd": 0.0001,
@@ -15,9 +16,9 @@
     "mult": 1.0,
     "num_subnets": 3,
     "save_client": false,
-    "thread_number": 10,
+    "thread_number": 5,
     "client_sample": 1.0,
     "stoch_depth": 0.5,
     "gamma": 0.0,
-    "public_data": "data/emnist"
+    "gpus":[0]
 }
