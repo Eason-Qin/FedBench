@@ -47,6 +47,7 @@ import methods.HHF as HHF
 import methods.fedun as fedun
 import data_preprocessing.custom_multiprocess as cm
 from mail import send_email
+from SMS import send_message
 def add_args(parser):
     # Training settings
     parser.add_argument('--method', type=str, default='fedavg', metavar='N',
@@ -299,4 +300,4 @@ if __name__ == "__main__":
         logging.info('Round {} Time: {}s'.format(r, round_end-round_start))
     pool.close()
     pool.join()
-    send_email(f"{server_dict['save_path']}__training finished.")
+    send_message(f"{server_dict['save_path']}__training finished.")

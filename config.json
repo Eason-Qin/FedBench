@@ -1,5 +1,5 @@
 {
-    "method": "fedavg",
+    "method": "fedsvd",
     "data_dir": "data/cifar10",
     "public_data": "data/cifar10",
     "partition_method": "hetero",
@@ -8,7 +8,7 @@
     "batch_size": 64,
     "lr": 0.01,
     "wd": 0.0001,
-    "epochs": 5,
+    "epochs": 1,
     "comm_round": 20,
     "pretrained": false,
     "mu": 0.45,

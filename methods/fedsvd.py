@@ -3,6 +3,7 @@ Code credit to https://github.com/QinbinLi/MOON
 for thier implementation of FedProx.
 '''
 
+from mimetypes import knownfiles
 import torch
 import logging
 from methods.base import Base_Client, Base_Server
@@ -50,33 +51,30 @@ class Client(Base_Client):
                                                                             epoch, sum(epoch_loss) / len(epoch_loss), current_process()._identity[0], self.client_map[self.round]))
         self.svd_local_model()
         # weights = self.model.cpu().state_dict()
-        return self.S
+        return {'S':self.S,'U':self.U,'V':self.VT}
     
     def svd_local_model(self):
         for name, param in self.model.named_parameters():
-            if 'conv' in name:
+            # if 'conv' in name:
                 # print(name)     
-                parameter=param.cpu().detach().numpy()
-                parameter=parameter.reshape(param.size(0),-1)
-                U_, S_, VT_ = svd(parameter,full_matrices=False)
-                self.U[name]=U_
-                self.S[name]=S_
-                self.VT[name]=VT_
+            parameter=param.cpu().detach().numpy()
+            parameter=parameter.reshape(param.size(0),-1)
+            U_, S_, VT_ = svd(parameter,full_matrices=False)
+            self.U[name]=U_
+            self.S[name]=S_
+            self.VT[name]=VT_
 
     def recover_model(self,Singular):
         # print(Singular)
         statedict=self.model.state_dict()
-        for name in self.S:
-            self.S[name]=Singular[name]
-        for layer_name in self.S:
-            if len(self.S[layer_name]) != min(self.U[layer_name].shape[0],self.VT[layer_name].shape[0]):
+        for layer_name in Singular['S']:
+            # if len(self.S[layer_name]) != min(self.U[layer_name].shape[0],self.VT[layer_name].shape[0]):
                 # print("extending!")
-                np.append(self.S[layer_name],np.array([0*(min(self.U[layer_name].shape[0],self.VT[layer_name].shape[0])-len(self.S[layer_name]))]))
+                # np.append(self.S[layer_name],np.array([0*(min(self.U[layer_name].shape[0],self.VT[layer_name].shape[0])-len(self.S[layer_name]))]))
             paramshape=statedict[layer_name].shape
-            layer_weights=np.dot(np.dot(self.U[layer_name], np.diag(self.S[layer_name])),self.VT[layer_name])
+            layer_weights=np.dot(np.dot(Singular['U'][layer_name], np.diag(Singular['S'][layer_name])),Singular['V'][layer_name])
             layer_weights=layer_weights.reshape(paramshape)
             statedict[layer_name]=torch.tensor(layer_weights).to(self.device)
-            
         self.model.load_state_dict(statedict)
             
 
@@ -84,25 +82,39 @@ class Server(Base_Server):
     def __init__(self,server_dict, args):
         super().__init__(server_dict, args)
         self.model = self.model_type(class_num=self.num_classes,in_channels=self.in_channels)
+        self.global_model={}
         self.S_g={}
+        self.U_g={}
+        self.VT_g={}
     
     def start(self):
-        with open('{}/config.txt'.format(self.save_path), 'a+') as config:
+        with open('{}/config.json'.format(self.save_path), 'a+') as config:
             config.write(json.dumps(vars(self.args)))
         return [{} for x in range(self.args.thread_number)]
 
     def operations(self, client_info):
         client_info.sort(key=lambda tup: tup['client_index'])
         client_sd = [c['weights'] for c in client_info]
-        
         '''clients aggregate weights'''
         cw = [c['num_samples']/sum([x['num_samples'] for x in client_info]) for c in client_info]
         for key in client_sd[0]:
-            self.S_g[key] = sum([sd[key]*cw[i] for i, sd in enumerate(client_sd)])
+            '''three components S U V'''
+            tmp={}
+            for k in client_sd[0][key]:
+                '''layer name'''
+                tmp[k]=sum([sd[key][k]*cw[i] for i, sd in enumerate(client_sd)])
+            self.global_model[key]=tmp
+            # self.S_g[key] = sum([sd[key][k]*cw[i] for i, sd,k in enumerate(zip(client_sd,client_sd[0][key]))])
+        
         if self.args.save_client:
             for client in client_info:
                 torch.save(client['weights'], '{}/client_{}.pt'.format(self.save_path, client['client_index']))
-        return [self.S_g for x in range(self.args.thread_number)]
+        print(self.global_model['S']['conv1.weight'])
+        print(self.global_model['U']['conv1.weight'])
+        print(self.global_model['V']['conv1.weight'])
+        self.recover_model(self.global_model)
+
+        return [self.global_model for x in range(self.args.thread_number)]
     
     def log_info(self, client_info, acc):
         client_acc = sum([c['acc'] for c in client_info])/len(client_info)
@@ -115,3 +127,17 @@ class Server(Base_Server):
             out_file.write(out_str)
             out_file.write(client_str)
             out_file.write(dict_size)
+    
+    def recover_model(self,Singular):
+        # print(Singular)
+        statedict=self.model.state_dict()
+        for layer_name in Singular['S']:
+            # if len(self.S[layer_name]) != min(self.U[layer_name].shape[0],self.VT[layer_name].shape[0]):
+                # print("extending!")
+                # np.append(self.S[layer_name],np.array([0*(min(self.U[layer_name].shape[0],self.VT[layer_name].shape[0])-len(self.S[layer_name]))]))
+            print(layer_name)
+            paramshape=statedict[layer_name].shape
+            layer_weights=np.dot(np.dot(Singular['U'][layer_name], np.diag(Singular['S'][layer_name])),Singular['V'][layer_name])
+            layer_weights=layer_weights.reshape(paramshape)
+            statedict[layer_name]=torch.tensor(layer_weights).to(self.device)
+        self.model.load_state_dict(statedict)
