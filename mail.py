@@ -16,7 +16,7 @@ receivers = ['hotfox2001@hotmail.com']
 def send_email(content):
     mail_content = content
     message = MIMEText(mail_content, 'plain', 'utf-8')
-    message['Subject'] = Header('python发邮件', 'utf-8')
+    message['Subject'] = Header('TrainingSucceed', 'utf-8')
     message['From'] = Header("eez195", 'utf-8')
     message['To'] = Header("yq", 'utf-8')
 

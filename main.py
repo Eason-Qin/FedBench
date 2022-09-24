@@ -116,6 +116,9 @@ def add_args(parser):
 
     parser.add_argument('--gpus', default=[0], type=list,
                     help='GPUs can be used.')
+    
+    parser.add_argument('--merge_lambda', default=0.5, type=float,
+                    help='model merge lambda.')
 
     args = parser.parse_args()
 
@@ -216,7 +219,7 @@ if __name__ == "__main__":
         Model = resnet56 if 'cifar' in args.data_dir else resnet18
         server_dict = {'train_data':train_data_global, 'test_data': test_data_global, 'model_type': Model, 'num_classes': class_num}
         client_dict = [{'train_data':train_data_local_dict, 'test_data': test_data_local_dict, 'device': i % torch.cuda.device_count(),
-                            'client_map':mapping_dict[i], 'model_type': Model, 'num_classes': class_num} for i in range(args.thread_number)]
+                            'client_map':mapping_dict[i], 'model_type': Model, 'num_classes': class_num,'merge_lambda':args.merge_lambda} for i in range(args.thread_number)]
 
     elif args.method=='sino':
         # specify client

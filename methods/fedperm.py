@@ -21,6 +21,7 @@ from gitrebasin.utils.utils import  lerp
 class Client(Base_Client):
     def __init__(self, client_dict, args):
         super().__init__(client_dict, args)
+        self.merge_lambda=client_dict['merge_lambda']
         self.model = self.model_type(22, 1, 0, num_classes=10).to(self.device)
         # print(self.in_channels)
         self.criterion = torch.nn.CrossEntropyLoss().to(self.device)
@@ -63,7 +64,7 @@ class Client(Base_Client):
         updated_params = apply_permutation(permutation_spec, final_permutation, global_model)
         model_a_dict = copy.deepcopy(self.model.cpu().state_dict())
         model_b_dict = copy.deepcopy(updated_params)
-        permed_local = lerp(0.5, model_a_dict, model_b_dict)
+        permed_local = lerp(self.merge_lambda, model_a_dict, model_b_dict)
         self.model.load_state_dict(permed_local)
             
 

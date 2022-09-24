@@ -20,5 +20,6 @@
     "client_sample": 1.0,
     "stoch_depth": 0.5,
     "gamma": 0.0,
-    "gpus":[0]
+    "gpus":[0],
+    "merge_lambda":0.5
 }
