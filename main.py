@@ -22,6 +22,7 @@ from models.resnet_hhf import ResNet12 as resnet12_hhf
 from models.resnet_hhf import ResNet50 as resnet50_hhf
 from models.mobilnet_v2 import MobileNetV2
 from models.shufflenet import ShuffleNetG2
+from gitrebasin.models.resnet import ResNet
 
 from torch.multiprocessing import set_start_method, Queue, get_context
 import multiprocessing
@@ -35,6 +36,7 @@ import shutil
 
 # methods
 import methods.fedavg as fedavg
+import methods.fedperm as fedperm
 import methods.fedsvd as fedsvd
 import methods.gradaug as gradaug
 import methods.fedprox as fedprox
@@ -231,6 +233,16 @@ if __name__ == "__main__":
         Server = fedsvd.Server
         Client = fedsvd.Client
         Model = resnet18 if 'cifar' or 'mnist' in args.data_dir else resnet18
+        # args needed in Clients.init()
+        server_dict = {'train_data':train_data_global, 'test_data': test_data_global, 'model_type': Model, 'num_classes': class_num,'in_channels':in_channel}
+        client_dict = [{'train_data':train_data_local_dict, 'test_data': test_data_local_dict, 'device': gpus[i % len(gpus)],
+                            'client_map':mapping_dict[i], 'model_type': Model, 'num_classes': class_num,'in_channels':in_channel} for i in range(args.thread_number)]
+    
+    elif args.method=='permu':
+        # specify client
+        Server = fedperm.Server
+        Client = fedperm.Client
+        Model = ResNet
         # args needed in Clients.init()
         server_dict = {'train_data':train_data_global, 'test_data': test_data_global, 'model_type': Model, 'num_classes': class_num,'in_channels':in_channel}
         client_dict = [{'train_data':train_data_local_dict, 'test_data': test_data_local_dict, 'device': gpus[i % len(gpus)],

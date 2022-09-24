@@ -1,5 +1,5 @@
 {
-    "method": "fedsvd",
+    "method": "permu",
     "data_dir": "data/cifar10",
     "public_data": "data/cifar10",
     "partition_method": "hetero",
