@@ -49,7 +49,7 @@ import methods.HHF as HHF
 import methods.fedun as fedun
 import data_preprocessing.custom_multiprocess as cm
 from mail import send_email
-from SMS import send_message
+# from SMS import send_message
 def add_args(parser):
     # Training settings
     parser.add_argument('--method', type=str, default='fedavg', metavar='N',
