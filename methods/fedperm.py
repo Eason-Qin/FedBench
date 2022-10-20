@@ -18,7 +18,7 @@ class Client(Base_Client):
     def __init__(self, client_dict, args):
         super().__init__(client_dict, args)
         self.merge_lambda=client_dict['merge_lambda']
-        self.model = self.model_type(22, 2, 0, num_classes=10).to(self.device)
+        self.model = self.model_type(22, 2, 0, num_classes=100).to(self.device)
         # print(self.in_channels)
         self.criterion = torch.nn.CrossEntropyLoss().to(self.device)
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.args.lr, momentum=0.9, weight_decay=self.args.wd, nesterov=True)
@@ -65,5 +65,5 @@ class Client(Base_Client):
 class Server(Base_Server):
     def __init__(self,server_dict, args):
         super().__init__(server_dict, args)
-        self.model = self.model_type(22, 2, 0, num_classes=10)
+        self.model = self.model_type(22, 2, 0, num_classes=100)
         print(self.in_channels)

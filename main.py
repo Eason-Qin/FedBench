@@ -20,6 +20,7 @@ from models.resnet_fedalign import resnet56 as resnet56_fedalign
 from models.resnet_fedalign import resnet18 as resnet18_fedalign
 from models.resnet_hhf import ResNet12 as resnet12_hhf
 from models.resnet_hhf import ResNet50 as resnet50_hhf
+from models.resnet_fedsvg import ResNet12 as resnet12_svg
 from models.mobilnet_v2 import MobileNetV2
 from models.shufflenet import ShuffleNetG2
 from gitrebasin.models.resnet import ResNet
@@ -47,6 +48,7 @@ import methods.mixup as mixup
 import methods.fedalign as fedalign
 import methods.HHF as HHF
 import methods.fedun as fedun
+from methods.reformmodel import resolver
 import data_preprocessing.custom_multiprocess as cm
 from mail import send_email
 # from SMS import send_message
@@ -219,7 +221,7 @@ if __name__ == "__main__":
         Model = resnet56 if 'cifar' in args.data_dir else resnet18
         server_dict = {'train_data':train_data_global, 'test_data': test_data_global, 'model_type': Model, 'num_classes': class_num}
         client_dict = [{'train_data':train_data_local_dict, 'test_data': test_data_local_dict, 'device': i % torch.cuda.device_count(),
-                            'client_map':mapping_dict[i], 'model_type': Model, 'num_classes': class_num,'merge_lambda':args.merge_lambda} for i in range(args.thread_number)]
+                            'client_map':mapping_dict[i], 'model_type': Model, 'num_classes': class_num} for i in range(args.thread_number)]
 
     elif args.method=='sino':
         # specify client
@@ -235,7 +237,7 @@ if __name__ == "__main__":
         # specify client
         Server = fedsvd.Server
         Client = fedsvd.Client
-        Model = resnet18 if 'cifar' or 'mnist' in args.data_dir else resnet18
+        Model = resnet12_svg if 'cifar' or 'mnist' in args.data_dir else resnet12_svg
         # args needed in Clients.init()
         server_dict = {'train_data':train_data_global, 'test_data': test_data_global, 'model_type': Model, 'num_classes': class_num,'in_channels':in_channel}
         client_dict = [{'train_data':train_data_local_dict, 'test_data': test_data_local_dict, 'device': gpus[i % len(gpus)],
@@ -249,7 +251,7 @@ if __name__ == "__main__":
         # args needed in Clients.init()
         server_dict = {'train_data':train_data_global, 'test_data': test_data_global, 'model_type': Model, 'num_classes': class_num,'in_channels':in_channel}
         client_dict = [{'train_data':train_data_local_dict, 'test_data': test_data_local_dict, 'device': gpus[i % len(gpus)],
-                            'client_map':mapping_dict[i], 'model_type': Model, 'num_classes': class_num,'in_channels':in_channel} for i in range(args.thread_number)]
+                            'client_map':mapping_dict[i], 'model_type': Model, 'num_classes': class_num,'in_channels':in_channel,'merge_lambda':args.merge_lambda} for i in range(args.thread_number)]
 
     
 

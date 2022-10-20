@@ -1,7 +1,7 @@
 {
-    "method": "permu",
-    "data_dir": "data/cifar10",
-    "public_data": "data/cifar10",
+    "method": "fedavg",
+    "data_dir": "data/cifar100",
+    "public_data": "data/cifar100",
     "partition_method": "hetero",
     "partition_alpha": 0.1,
     "client_number": 5,
@@ -20,6 +20,6 @@
     "client_sample": 1.0,
     "stoch_depth": 0.5,
     "gamma": 0.0,
-    "gpus":[0],
-    "merge_lambda":0.5
+    "gpus":[3],
+    "merge_lambda":0.8
 }
