@@ -80,11 +80,11 @@ class Client(Base_Client):
                 logging.info('(client {}. Local Training Epoch: {} \tLoss: {:.6f}  Thread {}  Map {}'.format(self.client_index,
                                                                             epoch, sum(epoch_loss) / len(epoch_loss), current_process()._identity[0], self.client_map[self.round]))
         self.extract_s()
-        return self.S
+        return self.model.state_dict()
     
     def extract_s(self):
         for name,param in self.model.named_parameters():
-            if param.requires_grad and 'fc' not in name:
+            if param.requires_grad:
                 self.S[name]=param
 
     def recover_s(self,global_s):
@@ -114,7 +114,7 @@ class Server(Base_Server):
         for name, param in self.model.named_parameters():
             param.requires_grad=False
             print(param.requires_grad)
-            if 'vector_S' in name or 'linear' in name:
+            if 'vector_S' in name or 'fc' in name:
                param.requires_grad = True
         self.global_model={}
         self.S_g={}
@@ -132,9 +132,10 @@ class Server(Base_Server):
         '''clients aggregate weights'''
         cw = [c['num_samples']/sum([x['num_samples'] for x in client_info]) for c in client_info]
         for name,param in self.model.named_parameters():
-            if param.requires_grad and 'linear' not in name:
-                self.global_model[name]=param
+            # if param.requires_grad:
+            self.global_model[name]=param
         for key in self.global_model:
+            print(key)
             self.global_model[key] = sum([sd[key]*cw[i] for i, sd in enumerate(client_sd)]).detach()
         self.recover_s(self.global_model)
         if self.args.save_client:
